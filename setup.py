@@ -1,8 +1,8 @@
 from setuptools import setup, find_packages
 
 setup(
-    name="dexes",
-    version="0.1.1",
+    name="dex",
+    version="0.1.2",
     packages=find_packages(),
     package_data={
         "dex": ["abis/*.json"],
