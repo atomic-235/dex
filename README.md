@@ -2,6 +2,8 @@
 
 A Python library for interacting with Decentralized Exchanges (DEXes) on the Base network.
 
+Repository: [https://github.com/atomic-235/dex](https://github.com/atomic-235/dex)
+
 ## Overview
 
 This library provides tools and utilities for interacting with various decentralized exchanges on the Base network. It supports operations such as querying prices, executing trades, and managing liquidity positions.
@@ -9,9 +11,8 @@ This library provides tools and utilities for interacting with various decentral
 ## Installation
 
 ```bash
-pip install dex
+pip install dexlib
 ```
-
 
 ## Getting Started
 

@@ -1,8 +1,12 @@
 from setuptools import setup, find_packages
 
+# Read README.md
+with open("README.md", "r", encoding="utf-8") as fh:
+    long_description = fh.read()
+
 setup(
     name="dexlib",
-    version="0.1.2",
+    version="0.1.3",
     packages=find_packages(),
     package_data={
         "dex": ["abis/*.json"],
@@ -21,6 +25,9 @@ setup(
     ],
     python_requires=">=3.8",
     description="DEX interaction library for Base network",
+    long_description=long_description,
+    long_description_content_type="text/markdown",
+    url="https://github.com/atomic-235/dex",
     classifiers=[
         "Development Status :: 3 - Alpha",
         "Intended Audience :: Developers",
