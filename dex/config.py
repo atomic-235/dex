@@ -15,6 +15,7 @@ RPC_URL = "https://mainnet.base.org"
 # Contract addresses
 WETH_ADDRESS = Web3.to_checksum_address("0x4200000000000000000000000000000000000006")
 USDC_ADDRESS = Web3.to_checksum_address("0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913")
+ABASUSDC_ADDRESS = Web3.to_checksum_address("0x4e65fE4DbA92790696d040ac24Aa414708F5c0AB")
 
 # Token Decimals
 WETH_DECIMALS = 18
