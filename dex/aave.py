@@ -5,6 +5,7 @@ import asyncio
 import logging
 from .base import BaseDEX
 from .config import ABASUSDC_ADDRESS, load_abi
+from decimal import Decimal
 
 logger = logging.getLogger(__name__)
 
@@ -190,6 +191,16 @@ class InterestCalculator:
             transactions.append(tx_info)
             
         return sorted(transactions, key=lambda x: x['block'])
+
+    def calculate_apy(self, interest_earned: Decimal, principal: Decimal, days: Decimal) -> Decimal:
+        """Calculate annualized interest rate"""
+        if principal == 0 or days == 0:
+            return Decimal('0')
+        # Calculate the daily rate by dividing total return by number of days
+        daily_rate = (interest_earned / principal) / days
+        # Annualize by compounding daily rate for 365 days
+        apy = ((1 + daily_rate) ** 365) - 1
+        return apy
 
 
 class Aave(BaseDEX):

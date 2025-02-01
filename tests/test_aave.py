@@ -162,7 +162,7 @@ def test_calculate_interest_all_time(aave: Aave):
     principal = Decimal(str(interest_data['expected_balance']))
     interest_earned = Decimal(str(interest_data['interest_earned']))
 
-    apy = calculate_apy(interest_earned, principal, days)
+    apy = interest_calc.calculate_apy(interest_earned, principal, days)
 
     logger.info(f"All-time Interest Calculation:")
     logger.info(f"First deposit block: {start_block}")
