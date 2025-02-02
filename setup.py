@@ -6,7 +6,7 @@ with open("README.md", "r", encoding="utf-8") as fh:
 
 setup(
     name="dexlib",
-    version="0.1.3",
+    version="0.1.4",
     packages=find_packages(),
     package_data={
         "dex": ["abis/*.json"],
