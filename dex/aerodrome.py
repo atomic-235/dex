@@ -71,7 +71,7 @@ class AerodromeDEX(BaseDEX):
             logger.info(f"Pool address for {token_a} -> {token_b} (stable={stable}): {pool}")
             return pool != '0x0000000000000000000000000000000000000000'
         except Exception as e:
-            logger.error(f"Error checking pool: {str(e)}")
+            error_result = self._handle_error(e, "checking pool existence")
             return False
 
     async def get_quote(self, token_in: str, token_out: str, amount_in: int) -> int:
@@ -86,8 +86,7 @@ class AerodromeDEX(BaseDEX):
             raise Exception("No valid quotes found")
 
         except Exception as e:
-            logger.error(f"Error getting quote: {str(e)}")
-            raise
+            return self._handle_error(e, "getting quote")
 
     async def _try_path(self, path: List[str], amount_in: int) -> int:
         """Try to get a quote for a specific path"""
@@ -130,7 +129,7 @@ class AerodromeDEX(BaseDEX):
                 return 0
 
         except Exception as e:
-            logger.error(f"Error trying path {path}: {str(e)}")
+            error_result = self._handle_error(e, f"trying path {path}")
             return 0
 
     async def swap_tokens(self, token_in: str, token_out: str, amount_in: int) -> Optional[Dict[str, Any]]:
@@ -217,11 +216,7 @@ class AerodromeDEX(BaseDEX):
                 }
 
         except Exception as e:
-            logger.error(f"Error executing swap: {str(e)}")
-            return {
-                'success': False,
-                'error': str(e)
-            }
+            return self._handle_error(e, "executing swap")
 
     async def _get_route(self, path: List[str]) -> List[Tuple[ChecksumAddress, ChecksumAddress, bool, ChecksumAddress]]:
         """Get the best route for a path"""
@@ -245,5 +240,5 @@ class AerodromeDEX(BaseDEX):
             return [r.to_tuple() for r in routes]
 
         except Exception as e:
-            logger.error(f"Error getting route: {str(e)}")
+            error_result = self._handle_error(e, "getting route")
             return []

@@ -77,8 +77,7 @@ class UniswapV3DEX(BaseDEX):
             return int(quote[0])  # Return amountOut and ensure it's int
 
         except Exception as e:
-            logger.error(f"Error getting quote: {str(e)}")
-            raise
+            return self._handle_error(e, "getting quote")
 
 
     async def swap_tokens(self, token_in: str, token_out: str, amount_in: int) -> Dict[str, Any]:
@@ -87,21 +86,45 @@ class UniswapV3DEX(BaseDEX):
         """
         try:
             logger.info(f"Starting swap of {amount_in} {token_in} to {token_out}")
+
+            # Check balance before swap
+            token_in_addr = Web3.to_checksum_address(token_in)
+            token_out_addr = Web3.to_checksum_address(token_out)
+            
+            token = self.w3.eth.contract(address=token_in_addr, abi=self.token_abi)
+            balance = await asyncio.to_thread(
+                lambda: token.functions.balanceOf(self.address).call()
+            )
+            if balance < amount_in:
+                return {
+                    'success': False,
+                    'error': f'Insufficient balance: have {balance}, need {amount_in}'
+                }
             
             # Get quote for validation
-            quote = await self.get_quote(token_in, token_out, amount_in)
-            if not quote:
-                raise Exception("Could not get valid quote")
+            quote = await self.get_quote(token_in_addr, token_out_addr, amount_in)
+            if isinstance(quote, dict) and not quote.get('success'):
+                return quote  # Return error from quote
             logger.info(f"Got quote: {quote}")
 
             # Calculate minimum amount out with slippage
             min_amount_out = int(quote * (1 - self.slippage))
             logger.info(f"Min amount out with {self.slippage*100}% slippage: {min_amount_out}")
 
+            # Recheck balance before executing swap
+            balance = await asyncio.to_thread(
+                lambda: token.functions.balanceOf(self.address).call()
+            )
+            if balance < amount_in:
+                return {
+                    'success': False,
+                    'error': f'Insufficient balance: have {balance}, need {amount_in}'
+                }
+
             # Prepare swap parameters
             params = {
-                'tokenIn': Web3.to_checksum_address(token_in),
-                'tokenOut': Web3.to_checksum_address(token_out),
+                'tokenIn': token_in_addr,
+                'tokenOut': token_out_addr,
                 'fee': UNISWAP_FEE_TIER,
                 'recipient': self.address,
                 'amountIn': int(amount_in),  # Ensure amount is int
@@ -111,10 +134,17 @@ class UniswapV3DEX(BaseDEX):
 
             # Build transaction
             swap_function = self.router.functions.exactInputSingle(params)
-            tx = swap_function.build_transaction({
-                'from': self.address,
-                'nonce': await self.get_nonce()
-            })
+            nonce = await self.get_next_nonce()
+            tx = await asyncio.to_thread(
+                lambda: swap_function.build_transaction({
+                    'from': self.address,
+                    'nonce': nonce,
+                    'type': 2,  # EIP-1559
+                    'maxFeePerGas': Web3.to_wei('4', 'gwei'),
+                    'maxPriorityFeePerGas': Web3.to_wei('2', 'gwei'),
+                    'value': 0  # No ETH being sent
+                })
+            )
             logger.info("Built transaction parameters")
 
             # Sign transaction
@@ -151,8 +181,4 @@ class UniswapV3DEX(BaseDEX):
                 }
 
         except Exception as e:
-            logger.error(f"Error executing swap: {str(e)}")
-            return {
-                'success': False,
-                'error': str(e)
-            }
+            return self._handle_error(e, "executing swap")
