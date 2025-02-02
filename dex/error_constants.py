@@ -10,6 +10,7 @@ ERROR_MESSAGES: Dict[str, str] = {
     "Too little received": "Price moved unfavorably, try increasing slippage tolerance",
     "ds-math-sub-underflow": "Insufficient token balance",
     "INSUFFICIENT_OUTPUT_AMOUNT": "Price moved unfavorably, try increasing slippage tolerance",
+    "0x203d82d8": "Price moved unfavorably, try increasing slippage tolerance",
     "EXCESSIVE_INPUT_AMOUNT": "Price impact too high, try smaller amount",
     "TRANSFER_FROM_FAILED": "Token transfer failed - check your balance and allowance",
     "EXPIRED": "Transaction expired, try again",

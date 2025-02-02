@@ -176,9 +176,15 @@ class AerodromeDEX(BaseDEX):
             )
 
             # Build transaction parameters
+            # Use fixed gas values like in Uniswap
+            max_fee = Web3.to_wei('4', 'gwei')
+            priority_fee = Web3.to_wei('2', 'gwei')
             tx = swap_function.build_transaction({
                 'from': self.address,
-                'nonce': await self.get_nonce()
+                'nonce': await self.get_and_increment_nonce(),
+                'type': 2,  # EIP-1559
+                'maxFeePerGas': max_fee,
+                'maxPriorityFeePerGas': priority_fee
             })
             logger.info("Built transaction parameters")
 
@@ -196,7 +202,7 @@ class AerodromeDEX(BaseDEX):
 
             # Wait for transaction receipt
             receipt = await asyncio.to_thread(
-                lambda: self.w3.eth.wait_for_transaction_receipt(tx_hash, timeout=30)
+                lambda: self.w3.eth.wait_for_transaction_receipt(tx_hash, timeout=60)
             )
             logger.info(f"Transaction receipt: {receipt}")
 

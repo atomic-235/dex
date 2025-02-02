@@ -38,7 +38,10 @@ class BaseDEX:
         pass
 
     async def get_and_increment_nonce(self) -> int:
-        nonce = await asyncio.to_thread(lambda: self.w3.eth.get_transaction_count(self.address, 'pending'))
+        if not hasattr(self, '_nonce'):
+            self._nonce = await asyncio.to_thread(lambda: self.w3.eth.get_transaction_count(self.address, 'pending'))
+        nonce = self._nonce
+        self._nonce += 1
         logger.info(f"Using nonce: {nonce}")
         return nonce
 
@@ -63,7 +66,9 @@ class BaseDEX:
             tx = approve_function.build_transaction({
                 'from': self.address,
                 'nonce': await self.get_and_increment_nonce(),
-                'type': 2  # EIP-1559
+                'type': 2,  # EIP-1559
+                'maxFeePerGas': Web3.to_wei('4', 'gwei'),
+                'maxPriorityFeePerGas': Web3.to_wei('2', 'gwei')
             })
             logger.info("Built transaction parameters")
 
