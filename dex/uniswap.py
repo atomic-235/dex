@@ -134,7 +134,7 @@ class UniswapV3DEX(BaseDEX):
 
             # Build transaction
             swap_function = self.router.functions.exactInputSingle(params)
-            nonce = await self.get_and_increment_nonce()
+            nonce = self.get_and_increment_nonce()
             tx = await asyncio.to_thread(
                 lambda: swap_function.build_transaction({
                     'from': self.address,
