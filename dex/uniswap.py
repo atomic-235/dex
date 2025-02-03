@@ -86,6 +86,8 @@ class UniswapV3DEX(BaseDEX):
         Swap tokens using Uniswap V3 router
         """
         try:
+            # Wait for any pending transactions first
+            await self._wait_for_pending_txs(token_in, token_out)
             # Wait for any pending transactions involving these tokens
             token_pair = tuple(sorted([token_in.lower(), token_out.lower()]))
             if token_pair in self._pending_txs:
@@ -134,7 +136,7 @@ class UniswapV3DEX(BaseDEX):
 
             # Build transaction
             swap_function = self.router.functions.exactInputSingle(params)
-            nonce = self.get_and_increment_nonce()
+            nonce = await self.get_nonce()
             tx = await asyncio.to_thread(
                 lambda: swap_function.build_transaction({
                     'from': self.address,
@@ -159,9 +161,6 @@ class UniswapV3DEX(BaseDEX):
             )
             logger.info(f"Transaction sent: {tx_hash.hex()}")
             
-            # Store this as a pending transaction for this token pair
-            self._pending_txs[token_pair] = tx_hash
-
             # Wait for transaction receipt
             receipt = await asyncio.to_thread(
                 lambda: self.w3.eth.wait_for_transaction_receipt(tx_hash, timeout=120)
@@ -169,6 +168,9 @@ class UniswapV3DEX(BaseDEX):
             logger.info(f"Transaction receipt: {receipt}")
 
             if receipt['status'] == 1:
+                # Store this as a completed transaction
+                token_pair = tuple(sorted([token_in.lower(), token_out.lower()]))
+                self._pending_txs[token_pair] = tx_hash
                 return {
                     'success': True,
                     'transactionHash': receipt['transactionHash'].hex(),

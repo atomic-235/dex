@@ -135,6 +135,8 @@ class AerodromeDEX(BaseDEX):
     async def swap_tokens(self, token_in: str, token_out: str, amount_in: int) -> Optional[Dict[str, Any]]:
         """Swap tokens using Aerodrome router"""
         try:
+            # Wait for any pending transactions first
+            await self._wait_for_pending_txs(token_in, token_out)
             logger.info(f"Starting swap of {amount_in} {token_in} to {token_out}")
             
             # Get quote first
@@ -179,7 +181,7 @@ class AerodromeDEX(BaseDEX):
             # Use fixed gas values like in Uniswap
             max_fee = Web3.to_wei('4', 'gwei')
             priority_fee = Web3.to_wei('2', 'gwei')
-            nonce = self.get_and_increment_nonce()
+            nonce = await self.get_nonce()
             tx = swap_function.build_transaction({
                 'from': self.address,
                 'nonce': nonce,
@@ -199,6 +201,29 @@ class AerodromeDEX(BaseDEX):
             tx_hash = await asyncio.to_thread(
                 lambda: self.w3.eth.send_raw_transaction(signed_tx.raw_transaction)
             )
+            
+            # Wait for transaction receipt
+            receipt = await asyncio.to_thread(
+                lambda: self.w3.eth.wait_for_transaction_receipt(tx_hash, timeout=120)
+            )
+            logger.info(f"Transaction receipt: {receipt}")
+
+            if receipt['status'] == 1:
+                # Store this as a completed transaction
+                token_pair = tuple(sorted([token_in.lower(), token_out.lower()]))
+                self._pending_txs[token_pair] = tx_hash.hex()
+                return {
+                    'success': True,
+                    'transactionHash': tx_hash.hex(),
+                    'gas_used': receipt['gasUsed'],
+                    'blockNumber': receipt['blockNumber']
+                }
+            else:
+                return {
+                    'success': False,
+                    'error': 'Transaction failed',
+                    'receipt': receipt
+                }
             logger.info(f"Transaction sent: {tx_hash.hex()}")
 
             # Wait for transaction receipt

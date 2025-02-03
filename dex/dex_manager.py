@@ -3,6 +3,7 @@ A generalized DEX manager for working with different DEXes.
 """
 
 import logging
+import asyncio
 from decimal import Decimal
 from typing import Dict, Any, Optional, Union, List
 from web3 import Web3
@@ -78,26 +79,19 @@ class DEXManager:
         
         return TOKEN_ADDRESSES[token]
 
-    async def get_token_balance(self, token: Union[str, Token], dex_name: Optional[str] = None) -> int:
-        """Get token balance for a given DEX
+    async def get_token_balance(self, token: Union[str, Token]) -> int:
+        """Get token balance for the account
         
         Args:
             token: Token symbol (e.g. 'USDC') or Token enum
-            dex_name: Optional DEX name to check balance for. If not provided, will check first available DEX
         
         Returns:
             Token balance in smallest units (e.g. wei)
         """
         token_address = self._get_token_address(token)
         
-        # If no DEX specified, use the first one
-        if not dex_name:
-            dex_name = next(iter(self.dexes.keys()))
-            
-        if dex_name not in self.dexes:
-            raise ValueError(f"Unknown DEX: {dex_name}")
-            
-        dex = self.dexes[dex_name]
+        # Use any DEX's token ABI since they're all the same
+        dex = next(iter(self.dexes.values()))
         
         # Get token contract
         token_contract = self.w3.eth.contract(
@@ -105,8 +99,10 @@ class DEXManager:
             abi=dex.token_abi
         )
         
-        # Get balance
-        return token_contract.functions.balanceOf(dex.address).call()
+        # Get balance for our account address from latest block
+        return await asyncio.to_thread(
+            lambda: token_contract.functions.balanceOf(self.dexes['uniswap'].account.address).call({'block_identifier': 'latest'})
+        )
 
     async def get_exchange_rate(
         self,
@@ -257,6 +253,7 @@ class DEXManager:
             result = await dex.swap_tokens(token_in_address, token_out_address, amount_in_wei)
             if result.get('success', False):
                 result['dex'] = dex_name
+
 
             return result
 

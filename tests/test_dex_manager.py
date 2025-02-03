@@ -5,6 +5,7 @@ Tests for the generalized DEX manager
 import os
 import pytest
 import logging
+import asyncio
 from web3 import Web3
 from dotenv import load_dotenv
 from decimal import Decimal
@@ -35,12 +36,13 @@ def dex_manager(w3):
 
 
 @pytest.mark.asyncio
+
 async def test_aerodrome_swaps(dex_manager):
     """Test Aerodrome swaps in both directions"""
 
     # Get initial balances
-    initial_usdc = await dex_manager.get_token_balance('USDC', 'aerodrome')
-    initial_btc = await dex_manager.get_token_balance('cbBTC', 'aerodrome')
+    initial_usdc = await dex_manager.get_token_balance('USDC')
+    initial_btc = await dex_manager.get_token_balance('cbBTC')
     logger.info(f"Initial balances - USDC: ${initial_usdc/1e6:.2f}, cbBTC: {initial_btc/1e8:.8f}")
 
     # Test USDC -> cbBTC swap
@@ -56,7 +58,7 @@ async def test_aerodrome_swaps(dex_manager):
     logger.info(f"USDC->cbBTC swap successful on Aerodrome: {result['transactionHash']}")
 
     # Check new balances
-    new_btc = await dex_manager.get_token_balance('cbBTC', 'aerodrome')
+    new_btc = await dex_manager.get_token_balance('cbBTC')
     assert new_btc > initial_btc, "cbBTC balance did not increase after swap"
     btc_gained = (new_btc - initial_btc) / Decimal('1e8')
     logger.info(f"Gained {btc_gained:.8f} cbBTC")
@@ -75,12 +77,14 @@ async def test_aerodrome_swaps(dex_manager):
 
 
 @pytest.mark.asyncio
+
 async def test_uniswap_swaps(dex_manager):
+
     """Test Uniswap swaps in both directions"""
 
     # Get initial balances
-    initial_usdc = await dex_manager.get_token_balance('USDC', 'uniswap')
-    initial_btc = await dex_manager.get_token_balance('cbBTC', 'uniswap')
+    initial_usdc = await dex_manager.get_token_balance('USDC')
+    initial_btc = await dex_manager.get_token_balance('cbBTC')
     logger.info(f"Initial balances - USDC: ${initial_usdc/1e6:.2f}, cbBTC: {initial_btc/1e8:.8f}")
 
     # Test USDC -> cbBTC swap
@@ -96,7 +100,7 @@ async def test_uniswap_swaps(dex_manager):
     logger.info(f"USDC->cbBTC swap successful on Uniswap: {result['transactionHash']}")
 
     # Check new balances
-    new_btc = await dex_manager.get_token_balance('cbBTC', 'uniswap')
+    new_btc = await dex_manager.get_token_balance('cbBTC')
     assert new_btc > initial_btc, "cbBTC balance did not increase after swap"
     btc_gained = (new_btc - initial_btc) / Decimal('1e8')
     logger.info(f"Gained {btc_gained:.8f} cbBTC")
@@ -115,7 +119,9 @@ async def test_uniswap_swaps(dex_manager):
 
 
 @pytest.mark.asyncio
+
 async def test_best_rate_swaps(dex_manager):
+
     """Test getting best rate from all DEXes"""
 
     # Test USDC -> cbBTC with best rate
@@ -140,8 +146,15 @@ async def test_best_rate_swaps(dex_manager):
 
 
 @pytest.mark.asyncio
+
 async def test_swap_tokens(dex_manager):
+
     """Test actual token swaps using DEX manager"""
+    # Get initial balances
+    initial_usdc = await dex_manager.get_token_balance('USDC')
+    initial_btc = await dex_manager.get_token_balance('cbBTC')
+    logger.info(f"Initial balances - USDC: ${initial_usdc/1e6:.2f}, cbBTC: {initial_btc/1e8:.8f}")
+
     # Test USDC -> cbBTC swap
     usdc_amount = Decimal('3.0')
     result = await dex_manager.swap_tokens(
@@ -153,10 +166,18 @@ async def test_swap_tokens(dex_manager):
     assert result['success'], f"USDC->cbBTC swap failed: {result.get('error')}"
     logger.info(f"USDC->cbBTC swap successful on {result['dex']}")
     logger.info(f"Transaction hash: {result['transactionHash']}")
-    logger.info(f"View on Basescan: https://basescan.org/tx/{result['transactionHash']}")
+
+    # Check balances after first swap
+    mid_usdc = await dex_manager.get_token_balance('USDC')
+    mid_btc = await dex_manager.get_token_balance('cbBTC')
+    assert mid_btc > initial_btc, "cbBTC balance did not increase after first swap"
+    assert mid_usdc < initial_usdc, "USDC balance did not decrease after first swap"
+    btc_gained = (mid_btc - initial_btc) / Decimal('1e8')
+    logger.info(f"Gained {btc_gained:.8f} cbBTC")
 
     # Test cbBTC -> USDC swap
-    btc_amount = Decimal('0.0001')  # Small amount for testing
+    # Swap half of the gained cbBTC back to USDC
+    btc_amount = btc_gained / 2
     result = await dex_manager.swap_tokens(
         'cbBTC',
         'USDC',
@@ -166,6 +187,10 @@ async def test_swap_tokens(dex_manager):
     assert result['success'], f"cbBTC->USDC swap failed: {result.get('error')}"
     logger.info(f"cbBTC->USDC swap successful on {result['dex']}")
     logger.info(f"Transaction hash: {result['transactionHash']}")
-    logger.info(f"View on Basescan: https://basescan.org/tx/{result['transactionHash']}")
-    logger.info(f"Transaction hash: {result['transactionHash']}")
-    logger.info(f"View on Basescan: https://basescan.org/tx/{result['transactionHash']}")
+
+    # Check final balances
+    final_usdc = await dex_manager.get_token_balance('USDC')
+    final_btc = await dex_manager.get_token_balance('cbBTC')
+    assert final_btc < mid_btc, "cbBTC balance did not decrease after reverse swap"
+    assert final_usdc > mid_usdc, "USDC balance did not increase after reverse swap"
+    logger.info(f"Final balances - USDC: ${final_usdc/1e6:.2f}, cbBTC: {final_btc/1e8:.8f}")

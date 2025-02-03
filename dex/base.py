@@ -26,6 +26,7 @@ class BaseDEX:
         self.slippage = 0.006  # 0.6% slippage tolerance
         self.nonce_lock = threading.Lock()
         self._next_nonce = w3.eth.get_transaction_count(self.address, 'pending')
+        self._pending_txs = {}
         
     def _handle_error(self, error: Union[Exception, Tuple[str, str]], context: str) -> Dict[str, Any]:
         """Handle errors in a consistent way across all DEX implementations"""
@@ -36,22 +37,53 @@ class BaseDEX:
             'error': readable_error
         }
 
+    async def _wait_for_pending_txs(self, token_in: str, token_out: str):
+        """Wait for any pending transactions involving these tokens"""
+        token_pair = tuple(sorted([token_in.lower(), token_out.lower()]))
+        if token_pair in self._pending_txs:
+            tx_hash = self._pending_txs[token_pair]
+            logger.info(f"Waiting for pending transaction {tx_hash} to complete")
+            await asyncio.to_thread(
+                lambda: self.w3.eth.wait_for_transaction_receipt(tx_hash, timeout=60)
+            )
+            del self._pending_txs[token_pair]
+
     def get_router_address(self) -> str:
         """Get the router address for this DEX"""
         pass
 
-    def get_and_increment_nonce(self):
-        """Get current nonce and increment in a thread-safe manner"""
-        with self.nonce_lock:
-            # First check current chain state
-            current_nonce = self.w3.eth.get_transaction_count(self.address, 'pending')
-            # If our stored nonce is behind, catch up
-            if self._next_nonce < current_nonce:
-                self._next_nonce = current_nonce
-            # Get and increment
-            nonce = self._next_nonce
-            self._next_nonce += 1
-        return nonce
+    async def get_nonce(self):
+        """Get the next available nonce for this account
+        
+        This method is safe for parallel transactions because it:
+        1. Always checks the current pending nonce from the chain
+        2. Uses optimistic locking to handle race conditions
+        3. Retries if the nonce was used by another transaction
+        """
+        while True:
+            with self.nonce_lock:
+                # Get latest pending nonce from chain
+                current_nonce = self.w3.eth.get_transaction_count(self.address, 'pending')
+                # Use the higher of our tracked nonce or chain nonce
+                next_nonce = max(self._next_nonce, current_nonce)
+                # Optimistically claim this nonce
+                self._next_nonce = next_nonce + 1
+                
+            # Try to use this nonce
+            try:
+                # Verify the nonce is still valid
+                chain_nonce = self.w3.eth.get_transaction_count(self.address, 'pending')
+                if chain_nonce <= next_nonce:
+                    # Success - this nonce is available
+                    return next_nonce
+            except Exception as e:
+                logger.warning(f"Error checking nonce: {e}")
+            
+            # If we get here, either:
+            # 1. The nonce was used by another transaction
+            # 2. There was an error checking the nonce
+            # In either case, we should retry
+            await asyncio.sleep(0.1)  # Small delay to prevent hammering the node
 
     async def approve_token(self, token_address: str, amount: int, spender: str) -> Dict[str, Any]:
         """Approve token spending"""
@@ -71,9 +103,10 @@ class BaseDEX:
 
             # Build approve transaction
             approve_function = token.functions.approve(spender, amount)
+            nonce = await self.get_nonce()
             tx = approve_function.build_transaction({
                 'from': self.address,
-                'nonce': self.get_and_increment_nonce(),
+                'nonce': nonce,
                 'type': 2,  # EIP-1559
                 'maxFeePerGas': Web3.to_wei('4', 'gwei'),
                 'maxPriorityFeePerGas': Web3.to_wei('2', 'gwei')
