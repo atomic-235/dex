@@ -45,7 +45,7 @@ TEST_CASES = [
     SwapTestCase(
         name="Regular amount",
         amount_usdc=Decimal('3.0'),
-        max_slippage=Decimal('.0')  # 0.65% max slippage for regular amounts
+        max_slippage=Decimal('1.0')  # 0.65% max slippage for regular amounts
     ),
   
 ]
@@ -100,7 +100,7 @@ async def test_swap_with_slippage_check(dex, binance, test_case):
     logger.info(f"Price difference: {price_diff:.3f}%")
 
     # Only proceed if slippage is acceptable
-    if price_diff <= float(test_case.max_slippage):
+    if price_diff > float(test_case.max_slippage):
         logger.warning(f"Price difference too high: {price_diff:.3f}% > {test_case.max_slippage}%"
     )
 

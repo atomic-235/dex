@@ -179,9 +179,10 @@ class AerodromeDEX(BaseDEX):
             # Use fixed gas values like in Uniswap
             max_fee = Web3.to_wei('4', 'gwei')
             priority_fee = Web3.to_wei('2', 'gwei')
+            nonce = self.get_and_increment_nonce()
             tx = swap_function.build_transaction({
                 'from': self.address,
-                'nonce': await self.get_and_increment_nonce(),
+                'nonce': nonce,
                 'type': 2,  # EIP-1559
                 'maxFeePerGas': max_fee,
                 'maxPriorityFeePerGas': priority_fee
