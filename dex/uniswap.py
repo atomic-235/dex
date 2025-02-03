@@ -107,7 +107,7 @@ class UniswapV3DEX(BaseDEX):
 
             # Check balance after any pending transactions complete
             if current_balance is None:
-                balance = await asyncio.to_thread(lambda: token.functions.balanceOf(self.address).call())
+                balance = await asyncio.to_thread(lambda: token.functions.balanceOf(self.address).call({'block_identifier': 'latest'}))
             else:
                 balance = current_balance
             if balance < amount_in:

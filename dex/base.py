@@ -157,9 +157,10 @@ class BaseDEX:
             )
             decimals = await asyncio.to_thread(lambda: token.functions.decimals().call())
             logger.info(f"Token {token_address} decimals: {decimals}")
+            logger.info(f"Checking balance for address: {self.address}")
             raw_balance = await asyncio.to_thread(
                 lambda: token.functions.balanceOf(self.address).call(
-                    block_identifier='pending'
+                    block_identifier='latest'
                 )
             )
             logger.info(f"Raw balance for {token_address}: {raw_balance}")

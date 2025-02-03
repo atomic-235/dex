@@ -90,19 +90,18 @@ class DEXManager:
         """
         token_address = self._get_token_address(token)
         
-        # Use any DEX's token ABI since they're all the same
+        # Use any DEX instance to get the balance since they all use the same account
         dex = next(iter(self.dexes.values()))
+        logger.info(f"Using DEX with address: {dex.address}")
+        raw_balance = await dex.get_token_balance(token_address)
         
-        # Get token contract
+        # Convert from decimal back to wei/satoshis
         token_contract = self.w3.eth.contract(
             address=token_address,
             abi=dex.token_abi
         )
-        
-        # Get balance for our account address from latest block
-        return await asyncio.to_thread(
-            lambda: token_contract.functions.balanceOf(self.dexes['uniswap'].account.address).call({'block_identifier': 'latest'})
-        )
+        decimals = await asyncio.to_thread(lambda: token_contract.functions.decimals().call())
+        return int(raw_balance * (10 ** decimals))
 
     async def get_exchange_rate(
         self,

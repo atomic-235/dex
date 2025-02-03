@@ -64,8 +64,8 @@ async def test_aerodrome_swaps(dex_manager):
     btc_gained = (new_btc - initial_btc) / Decimal('1e8')
     logger.info(f"Gained {btc_gained:.8f} cbBTC")
 
-    # Test cbBTC -> USDC swap with half of gained amount
-    btc_to_swap = btc_gained / Decimal('2')
+    # Test cbBTC -> USDC swap (convert all BTC back)
+    btc_to_swap = new_btc  # Use all available BTC
     result = await dex_manager.swap_tokens(
         'cbBTC',
         'USDC',
@@ -107,8 +107,8 @@ async def test_uniswap_swaps(dex_manager):
     btc_gained = (new_btc - initial_btc) / Decimal('1e8')
     logger.info(f"Gained {btc_gained:.8f} cbBTC")
 
-    # Test cbBTC -> USDC swap with half of gained amount
-    btc_to_swap = btc_gained / Decimal('2')
+    # Test cbBTC -> USDC swap (convert all BTC back)
+    btc_to_swap = new_btc  # Use all available BTC
     result = await dex_manager.swap_tokens(
         'cbBTC',
         'USDC',
@@ -178,9 +178,8 @@ async def test_swap_tokens(dex_manager):
     btc_gained = (mid_btc - initial_btc) / Decimal('1e8')
     logger.info(f"Gained {btc_gained:.8f} cbBTC")
 
-    # Test cbBTC -> USDC swap
-    # Swap half of the gained cbBTC back to USDC
-    btc_amount = btc_gained / 2
+    # Test cbBTC -> USDC swap (convert all BTC back)
+    btc_amount = mid_btc  # Use all available BTC
     result = await dex_manager.swap_tokens(
         'cbBTC',
         'USDC',
