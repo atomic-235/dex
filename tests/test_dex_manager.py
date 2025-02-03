@@ -57,7 +57,8 @@ async def test_aerodrome_swaps(dex_manager):
     assert result['success'], f"Failed to swap USDC->cbBTC: {result.get('error')}"
     logger.info(f"USDC->cbBTC swap successful on Aerodrome: {result['transactionHash']}")
 
-    # Check new balances
+    # Wait a bit for node to update and check new balances
+    await asyncio.sleep(2)  # Wait 2 seconds for node to update
     new_btc = await dex_manager.get_token_balance('cbBTC')
     assert new_btc > initial_btc, "cbBTC balance did not increase after swap"
     btc_gained = (new_btc - initial_btc) / Decimal('1e8')
@@ -99,7 +100,8 @@ async def test_uniswap_swaps(dex_manager):
     assert result['success'], f"Failed to swap USDC->cbBTC: {result.get('error')}"
     logger.info(f"USDC->cbBTC swap successful on Uniswap: {result['transactionHash']}")
 
-    # Check new balances
+    # Wait a bit for node to update and check new balances
+    await asyncio.sleep(2)  # Wait 2 seconds for node to update
     new_btc = await dex_manager.get_token_balance('cbBTC')
     assert new_btc > initial_btc, "cbBTC balance did not increase after swap"
     btc_gained = (new_btc - initial_btc) / Decimal('1e8')
@@ -167,7 +169,8 @@ async def test_swap_tokens(dex_manager):
     logger.info(f"USDC->cbBTC swap successful on {result['dex']}")
     logger.info(f"Transaction hash: {result['transactionHash']}")
 
-    # Check balances after first swap
+    # Wait a bit for node to update and check balances after first swap
+    await asyncio.sleep(2)  # Wait 2 seconds for node to update
     mid_usdc = await dex_manager.get_token_balance('USDC')
     mid_btc = await dex_manager.get_token_balance('cbBTC')
     assert mid_btc > initial_btc, "cbBTC balance did not increase after first swap"
@@ -188,7 +191,8 @@ async def test_swap_tokens(dex_manager):
     logger.info(f"cbBTC->USDC swap successful on {result['dex']}")
     logger.info(f"Transaction hash: {result['transactionHash']}")
 
-    # Check final balances
+    # Wait a bit for node to update and check final balances
+    await asyncio.sleep(2)  # Wait 2 seconds for node to update
     final_usdc = await dex_manager.get_token_balance('USDC')
     final_btc = await dex_manager.get_token_balance('cbBTC')
     assert final_btc < mid_btc, "cbBTC balance did not decrease after reverse swap"
