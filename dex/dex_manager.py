@@ -79,7 +79,7 @@ class DEXManager:
         
         return TOKEN_ADDRESSES[token]
 
-    async def get_token_balance(self, token: Union[str, Token]) -> int:
+    def get_token_balance(self, token: Union[str, Token]) -> int:
         """Get token balance for the account
         
         Args:
@@ -93,17 +93,17 @@ class DEXManager:
         # Use any DEX instance to get the balance since they all use the same account
         dex = next(iter(self.dexes.values()))
         logger.info(f"Using DEX with address: {dex.address}")
-        raw_balance = await dex.get_token_balance(token_address)
+        raw_balance = dex.get_token_balance(token_address)
         
         # Convert from decimal back to wei/satoshis
         token_contract = self.w3.eth.contract(
             address=token_address,
             abi=dex.token_abi
         )
-        decimals = await asyncio.to_thread(lambda: token_contract.functions.decimals().call())
+        decimals = token_contract.functions.decimals().call()
         return int(raw_balance * (10 ** decimals))
 
-    async def get_exchange_rate(
+    def get_exchange_rate(
         self,
         token_in: Union[str, Token],
         token_out: Union[str, Token],
@@ -153,7 +153,7 @@ class DEXManager:
             for dex_name in dexes_to_check:
                 dex = self.dexes[dex_name]
                 try:
-                    quote = await dex.get_quote(token_in_address, token_out_address, amount_in_wei)
+                    quote = dex.get_quote(token_in_address, token_out_address, amount_in_wei)
                     if quote > best_amount:
                         best_amount = quote
                         best_dex = dex_name
@@ -196,7 +196,7 @@ class DEXManager:
                 'error': str(e)
             }
 
-    async def swap_tokens(
+    def swap_tokens(
         self,
         token_in: Union[str, Token],
         token_out: Union[str, Token],
@@ -228,7 +228,7 @@ class DEXManager:
 
             # First get best rate if DEX not specified
             if not dex_name:
-                rate_result = await self.get_exchange_rate(token_in, token_out, amount_in)
+                rate_result = self.get_exchange_rate(token_in, token_out, amount_in)
                 if not rate_result['success']:
                     return rate_result
                 dex_name = rate_result['dex']
@@ -251,10 +251,10 @@ class DEXManager:
                 dex.slippage = float(max_slippage)
 
             # Approve token if needed
-            await dex.approve_token(token_in_address, amount_in_wei, dex.router_address)
+            dex.approve_token(token_in_address, amount_in_wei, dex.router_address)
 
             # Execute swap
-            result = await dex.swap_tokens(token_in_address, token_out_address, amount_in_wei)
+            result = dex.swap_tokens(token_in_address, token_out_address, amount_in_wei)
             if result.get('success', False):
                 result['dex'] = dex_name
 

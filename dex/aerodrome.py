@@ -14,8 +14,7 @@ from .config import (
     AERODROME_FACTORY_ADDRESS,
     AERODROME_ROUTER_ABI,
     AERODROME_FACTORY_ABI,
-    ERC20_ABI,
-    cbBTC_ADDRESS
+    ERC20_ABI
 )
 
 logger = logging.getLogger(__name__)
@@ -58,27 +57,25 @@ class AerodromeDEX(BaseDEX):
         )
         self.slippage = 0.01  # 1% slippage tolerance
 
-    async def get_pool_exists(self, token_a: str, token_b: str, stable: bool) -> bool:
+    def get_pool_exists(self, token_a: str, token_b: str, stable: bool) -> bool:
         """Check if pool exists"""
         try:
-            pool = await asyncio.to_thread(
-                self.factory.functions.getPool(
-                    Web3.to_checksum_address(token_a),
-                    Web3.to_checksum_address(token_b),
-                    stable
-                ).call
-            )
+            pool = self.factory.functions.getPool(
+                Web3.to_checksum_address(token_a),
+                Web3.to_checksum_address(token_b),
+                stable
+            ).call()
             logger.info(f"Pool address for {token_a} -> {token_b} (stable={stable}): {pool}")
             return pool != '0x0000000000000000000000000000000000000000'
         except Exception as e:
             error_result = self._handle_error(e, "checking pool existence")
             return False
 
-    async def get_quote(self, token_in: str, token_out: str, amount_in: int) -> int:
+    def get_quote(self, token_in: str, token_out: str, amount_in: int) -> int:
         """Get quote for a swap"""
         try:
             # First try direct path
-            direct_quote = await self._try_path([token_in, token_out], amount_in)
+            direct_quote = self._try_path([token_in, token_out], amount_in)
             if direct_quote > 0:
                 logger.info(f"Direct quote found: {direct_quote}")
                 return direct_quote
@@ -88,7 +85,7 @@ class AerodromeDEX(BaseDEX):
         except Exception as e:
             return self._handle_error(e, "getting quote")
 
-    async def _try_path(self, path: List[str], amount_in: int) -> int:
+    def _try_path(self, path: List[str], amount_in: int) -> int:
         """Try to get a quote for a specific path"""
         try:
             routes = []
@@ -97,8 +94,8 @@ class AerodromeDEX(BaseDEX):
                 token_out = path[i + 1]
 
                 # Try both stable and volatile pools
-                stable_pool_exists = await self.get_pool_exists(token_in, token_out, True)
-                volatile_pool_exists = await self.get_pool_exists(token_in, token_out, False)
+                stable_pool_exists = self.get_pool_exists(token_in, token_out, True)
+                volatile_pool_exists = self.get_pool_exists(token_in, token_out, False)
 
                 logger.info(f"Pool check {token_in} -> {token_out}: stable={stable_pool_exists}, volatile={volatile_pool_exists}")
 
@@ -116,12 +113,10 @@ class AerodromeDEX(BaseDEX):
             routes = [r.to_tuple() for r in routes]
 
             try:
-                quote = await asyncio.to_thread(
-                    self.router.functions.getAmountsOut(
-                        amount_in,
-                        routes
-                    ).call
-                )
+                quote = self.router.functions.getAmountsOut(
+                    amount_in,
+                    routes
+                ).call()
                 logger.info(f"Quote for path {path}: {quote}")
                 return quote[-1]  # Return the final output amount
             except Exception as e:
@@ -132,15 +127,22 @@ class AerodromeDEX(BaseDEX):
             error_result = self._handle_error(e, f"trying path {path}")
             return 0
 
-    async def swap_tokens(self, token_in: str, token_out: str, amount_in: int) -> Optional[Dict[str, Any]]:
+    def swap_tokens(self, token_in: str, token_out: str, amount_in: int) -> Optional[Dict[str, Any]]:
         """Swap tokens using Aerodrome router"""
         try:
             # Wait for any pending transactions first
-            await self._wait_for_pending_txs(token_in, token_out)
+            self._wait_for_pending_txs(token_in, token_out)
             logger.info(f"Starting swap of {amount_in} {token_in} to {token_out}")
             
+            # Check balance first
+            token = self.w3.eth.contract(address=Web3.to_checksum_address(token_in), abi=self.token_abi)
+            block = self.w3.eth.block_number
+            balance = token.functions.balanceOf(self.address).call(block_identifier=block)
+            if balance < amount_in:
+                return {'success': False, 'error': f'Insufficient balance: have {balance}, need {amount_in}'}
+            
             # Get quote first
-            amount_out = await self.get_quote(token_in, token_out, amount_in)
+            amount_out = self.get_quote(token_in, token_out, amount_in)
             if amount_out == 0:
                 raise Exception("Could not get valid quote")
             logger.info(f"Got quote: {amount_out}")
@@ -155,7 +157,7 @@ class AerodromeDEX(BaseDEX):
             # Try direct path first
             direct_path = [token_in, token_out]
             logger.info(f"Trying direct path: {direct_path}")
-            direct_route = await self._get_route(direct_path)
+            direct_route = self._get_route(direct_path)
             if direct_route:
                 routes = direct_route
                 logger.info("Using direct route")
@@ -181,31 +183,27 @@ class AerodromeDEX(BaseDEX):
             # Use fixed gas values like in Uniswap
             max_fee = Web3.to_wei('4', 'gwei')
             priority_fee = Web3.to_wei('2', 'gwei')
-            nonce = await self.get_nonce()
             tx = swap_function.build_transaction({
                 'from': self.address,
-                'nonce': nonce,
                 'type': 2,  # EIP-1559
                 'maxFeePerGas': max_fee,
                 'maxPriorityFeePerGas': priority_fee
             })
+            
+            # Get latest nonce right before signing
+            tx['nonce'] = self.get_nonce()
             logger.info("Built transaction parameters")
 
             # Sign transaction
-            signed_tx = await asyncio.to_thread(
-                lambda: self.w3.eth.account.sign_transaction(tx, private_key=self.account.key)
-            )
+            signed_tx = self.w3.eth.account.sign_transaction(tx, private_key=self.account.key)
             logger.info("Transaction signed")
 
             # Send transaction
-            tx_hash = await asyncio.to_thread(
-                lambda: self.w3.eth.send_raw_transaction(signed_tx.raw_transaction)
-            )
+            tx_hash = self.w3.eth.send_raw_transaction(signed_tx.raw_transaction)
+            logger.info(f"Transaction sent: {tx_hash.hex()}")
             
             # Wait for transaction receipt
-            receipt = await asyncio.to_thread(
-                lambda: self.w3.eth.wait_for_transaction_receipt(tx_hash, timeout=120)
-            )
+            receipt = self.w3.eth.wait_for_transaction_receipt(tx_hash, timeout=120)
             logger.info(f"Transaction receipt: {receipt}")
 
             if receipt['status'] == 1:
@@ -215,27 +213,6 @@ class AerodromeDEX(BaseDEX):
                 return {
                     'success': True,
                     'transactionHash': tx_hash.hex(),
-                    'gas_used': receipt['gasUsed'],
-                    'blockNumber': receipt['blockNumber']
-                }
-            else:
-                return {
-                    'success': False,
-                    'error': 'Transaction failed',
-                    'receipt': receipt
-                }
-            logger.info(f"Transaction sent: {tx_hash.hex()}")
-
-            # Wait for transaction receipt
-            receipt = await asyncio.to_thread(
-                lambda: self.w3.eth.wait_for_transaction_receipt(tx_hash, timeout=60)
-            )
-            logger.info(f"Transaction receipt: {receipt}")
-
-            if receipt['status'] == 1:
-                return {
-                    'success': True,
-                    'transactionHash': receipt['transactionHash'].hex(),
                     'amount_out': min_amount_out,
                     'gas_used': receipt['gasUsed'],
                     'blockNumber': receipt['blockNumber']
@@ -250,7 +227,7 @@ class AerodromeDEX(BaseDEX):
         except Exception as e:
             return self._handle_error(e, "executing swap")
 
-    async def _get_route(self, path: List[str]) -> List[Tuple[ChecksumAddress, ChecksumAddress, bool, ChecksumAddress]]:
+    def _get_route(self, path: List[str]) -> List[Tuple[ChecksumAddress, ChecksumAddress, bool, ChecksumAddress]]:
         """Get the best route for a path"""
         try:
             routes = []
@@ -259,8 +236,8 @@ class AerodromeDEX(BaseDEX):
                 token_out = path[i + 1]
 
                 # Try both stable and volatile pools
-                stable_pool_exists = await self.get_pool_exists(token_in, token_out, True)
-                volatile_pool_exists = await self.get_pool_exists(token_in, token_out, False)
+                stable_pool_exists = self.get_pool_exists(token_in, token_out, True)
+                volatile_pool_exists = self.get_pool_exists(token_in, token_out, False)
 
                 if stable_pool_exists:
                     routes.append(Route(token_in, token_out, True, self.factory_address))
