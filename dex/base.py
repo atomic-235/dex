@@ -27,6 +27,7 @@ class BaseDEX:
         self.slippage = 0.006  # 0.6% slippage tolerance
 
         self._pending_txs = {}
+        self._nonce = None  # Initialize nonce tracking
         
     def _handle_error(self, error: Union[Exception, Tuple[str, str]], context: str) -> Dict[str, Any]:
         """Handle errors in a consistent way across all DEX implementations"""
@@ -70,9 +71,17 @@ class BaseDEX:
     def get_nonce(self):
         """Get the next available nonce for this account
         
-        This method gets the latest nonce from the chain since operations are sequential.
+        This method manages nonce tracking to ensure sequential operations.
         """
-        return self.w3.eth.get_transaction_count(self.address, 'pending')
+        # Always get a fresh nonce from pending state
+        pending_nonce = self.w3.eth.get_transaction_count(self.address, 'pending')
+        latest_nonce = self.w3.eth.get_transaction_count(self.address, 'latest')
+        
+        # Use the highest nonce we can find
+        next_nonce = max(pending_nonce, latest_nonce)
+        logger.info(f"Got nonces - pending: {pending_nonce}, latest: {latest_nonce}, using: {next_nonce}")
+        
+        return next_nonce
 
     def approve_token(self, token_address: str, amount: int, spender: str) -> Dict[str, Any]:
         """Approve token spending"""
