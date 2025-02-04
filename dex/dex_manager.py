@@ -158,16 +158,21 @@ class DEXManager:
                         best_amount = quote
                         best_dex = dex_name
                         
-                        # Calculate rate based on decimals
+                        # Calculate rate based on decimals for both tokens
+                        token_in_contract = self.w3.eth.contract(
+                            address=token_in_address,
+                            abi=dex.token_abi
+                        )
                         token_out_contract = self.w3.eth.contract(
                             address=token_out_address,
                             abi=dex.token_abi
                         )
+                        decimals_in = token_in_contract.functions.decimals().call()
                         decimals_out = token_out_contract.functions.decimals().call()
                         
                         # Rate = output_amount / input_amount
                         best_rate = (Decimal(str(quote)) / Decimal(10**decimals_out)) / \
-                                  (Decimal(str(amount_in_wei)) / Decimal(10**decimals))
+                                  (Decimal(str(amount_in_wei)) / Decimal(10**decimals_in))
                 except Exception as e:
                     logger.warning(f"Failed to get quote from {dex_name}: {str(e)}")
                     continue

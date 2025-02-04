@@ -25,7 +25,7 @@ class BaseDEX:
         self.router = None
         self.slippage = 0.006  # 0.6% slippage tolerance
         self.nonce_lock = threading.Lock()
-        self._next_nonce = w3.eth.get_transaction_count(self.address, 'pending')
+        self._next_nonce = w3.eth.get_transaction_count(self.address, 'latest')
         self._pending_txs = {}
         
     def _handle_error(self, error: Union[Exception, Tuple[str, str]], context: str) -> Dict[str, Any]:
@@ -39,13 +39,19 @@ class BaseDEX:
 
     async def _wait_for_pending_txs(self, token_in: str, token_out: str):
         """Wait for any pending transactions involving these tokens"""
+        # Get both pending and latest nonces for comparison
+        current_pending = self._pending_txs
+        latest_nonce = await asyncio.to_thread(lambda: self.w3.eth.get_transaction_count(self.address, 'latest'))
+        pending_nonce = await asyncio.to_thread(lambda: self.w3.eth.get_transaction_count(self.address, 'pending'))
+        logger.info(f"[_wait_for_pending_txs] Current pending transactions: {current_pending}")
+        logger.info(f"[_wait_for_pending_txs] Latest nonce: {latest_nonce}, Pending nonce: {pending_nonce}")
+
         token_pair = tuple(sorted([token_in.lower(), token_out.lower()]))
         if token_pair in self._pending_txs:
             tx_hash = self._pending_txs[token_pair]
-            logger.info(f"Waiting for pending transaction {tx_hash} to complete")
-            await asyncio.to_thread(
-                lambda: self.w3.eth.wait_for_transaction_receipt(tx_hash, timeout=60)
-            )
+            logger.info(f"[_wait_for_pending_txs] Waiting for pending transaction {tx_hash} for pair {token_pair}")
+            receipt = await asyncio.to_thread(lambda: self.w3.eth.wait_for_transaction_receipt(tx_hash, timeout=60))
+            logger.info(f"[_wait_for_pending_txs] Transaction {tx_hash} mined in block {receipt['blockNumber']}")
             del self._pending_txs[token_pair]
 
     def get_router_address(self) -> str:
@@ -155,12 +161,14 @@ class BaseDEX:
                 address=token_address,
                 abi=self.token_abi
             )
+            # Get latest block number for consistent state
+            block = await asyncio.to_thread(lambda: self.w3.eth.block_number)
             decimals = await asyncio.to_thread(lambda: token.functions.decimals().call())
             logger.info(f"Token {token_address} decimals: {decimals}")
-            logger.info(f"Checking balance for address: {self.address}")
+            logger.info(f"Checking balance for address: {self.address} at block {block}")
             raw_balance = await asyncio.to_thread(
                 lambda: token.functions.balanceOf(self.address).call(
-                    block_identifier='latest'
+                    block_identifier=block
                 )
             )
             logger.info(f"Raw balance for {token_address}: {raw_balance}")
