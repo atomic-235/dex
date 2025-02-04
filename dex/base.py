@@ -40,11 +40,25 @@ class BaseDEX:
         
     def _build_tx(self, function) -> Dict:
         """Build a transaction with standard gas settings"""
+        # Get the latest block to estimate gas prices
+        block = self.w3.eth.get_block('latest')
+        base_fee = block['baseFeePerGas']
+        
+        # Set gas prices - use 2x base fee for maxFeePerGas
+        max_fee = base_fee * 2
+        
+        # Set priority fee - ensure it's at least 50 wei (network minimum)
+        # Also set it to 10% of base fee if that's higher
+        priority_fee = max(50, base_fee // 10)
+        
+        # Log gas settings for debugging
+        logger.info(f"Gas settings - base fee: {base_fee} wei, max fee: {max_fee} wei, priority fee: {priority_fee} wei")
+        
         return function.build_transaction({
             'from': self.address,
             'type': 2,  # EIP-1559
-            'maxFeePerGas': Web3.to_wei('1', 'gwei'),
-            'maxPriorityFeePerGas': Web3.to_wei('0.5', 'gwei'),
+            'maxFeePerGas': max_fee,
+            'maxPriorityFeePerGas': priority_fee,
             'gas': GAS_LIMIT
         })
 
