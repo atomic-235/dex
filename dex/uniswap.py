@@ -123,12 +123,9 @@ class UniswapV3DEX(BaseDEX):
             # Build transaction
             swap_function = self.router.functions.exactInputSingle(params)
             nonce = self.get_nonce()
-            tx = swap_function.build_transaction({
-                'from': self.address,
+            tx = self._build_tx(swap_function)
+            tx.update({
                 'nonce': nonce,
-                'type': 2,  # EIP-1559
-                'maxFeePerGas': Web3.to_wei('4', 'gwei'),
-                'maxPriorityFeePerGas': Web3.to_wei('2', 'gwei'),
                 'value': 0  # No ETH being sent
             })
             logger.info("Built transaction parameters")

@@ -8,6 +8,7 @@ from web3 import Web3
 from eth_account.datastructures import SignedTransaction
 from typing import Dict, Any, Optional, Union, Tuple
 from .error_constants import get_readable_error
+from .config import GAS_LIMIT
 
 
 logger = logging.getLogger(__name__)
@@ -35,6 +36,16 @@ class BaseDEX:
             'success': False,
             'error': readable_error
         }
+        
+    def _build_tx(self, function) -> Dict:
+        """Build a transaction with standard gas settings"""
+        return function.build_transaction({
+            'from': self.address,
+            'type': 2,  # EIP-1559
+            'maxFeePerGas': Web3.to_wei('1', 'gwei'),
+            'maxPriorityFeePerGas': Web3.to_wei('0.5', 'gwei'),
+            'gas': GAS_LIMIT
+        })
 
     def _wait_for_pending_txs(self, token_in: str, token_out: str):
         """Wait for any pending transactions involving these tokens"""
@@ -61,7 +72,7 @@ class BaseDEX:
         
         This method gets the latest nonce from the chain since operations are sequential.
         """
-        return self.w3.eth.get_transaction_count(self.address, 'latest')
+        return self.w3.eth.get_transaction_count(self.address, 'pending')
 
     def approve_token(self, token_address: str, amount: int, spender: str) -> Dict[str, Any]:
         """Approve token spending"""
@@ -79,12 +90,7 @@ class BaseDEX:
 
             # Build approve transaction
             approve_function = token.functions.approve(spender, amount)
-            tx = approve_function.build_transaction({
-                'from': self.address,
-                'type': 2,  # EIP-1559
-                'maxFeePerGas': Web3.to_wei('4', 'gwei'),
-                'maxPriorityFeePerGas': Web3.to_wei('2', 'gwei')
-            })
+            tx = self._build_tx(approve_function)
             
             # Get latest nonce right before signing
             tx['nonce'] = self.get_nonce()
