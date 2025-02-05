@@ -99,11 +99,12 @@ class AerodromeDEX(BaseDEX):
 
                 logger.info(f"Pool check {token_in} -> {token_out}: stable={stable_pool_exists}, volatile={volatile_pool_exists}")
 
+                # Try both stable and volatile pools
                 if stable_pool_exists:
                     routes.append(Route(token_in, token_out, True, self.factory_address))
-                elif volatile_pool_exists:
+                if volatile_pool_exists:
                     routes.append(Route(token_in, token_out, False, self.factory_address))
-                else:
+                if not (stable_pool_exists or volatile_pool_exists):
                     return 0  # No valid pool for this pair
 
             if not routes:

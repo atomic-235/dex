@@ -44,15 +44,9 @@ class BaseDEX:
         block = self.w3.eth.get_block('latest')
         base_fee = block['baseFeePerGas']
         
-        # Set gas prices - use 2x base fee for maxFeePerGas
+        # Set gas prices - use 2x base fee for maxFeePerGas and 10% of base fee for maxPriorityFeePerGas
         max_fee = base_fee * 2
-        
-        # Set priority fee - ensure it's at least 50 wei (network minimum)
-        # Also set it to 10% of base fee if that's higher
-        priority_fee = max(50, base_fee // 10)
-        
-        # Log gas settings for debugging
-        logger.info(f"Gas settings - base fee: {base_fee} wei, max fee: {max_fee} wei, priority fee: {priority_fee} wei")
+        priority_fee = base_fee // 10
         
         return function.build_transaction({
             'from': self.address,

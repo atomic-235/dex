@@ -150,7 +150,31 @@ class DEXManager:
             # If specific DEX requested, only check that one
             dexes_to_check = [dex_name] if dex_name else self.dexes.keys()
 
+            # First check which DEXes have valid pools
+            valid_dexes = []
             for dex_name in dexes_to_check:
+                dex = self.dexes[dex_name]
+                if hasattr(dex, 'get_pool_exists'):
+                    # For DEXes that support pool checking
+                    try:
+                        if dex.get_pool_exists(token_in_address, token_out_address, True) or \
+                           dex.get_pool_exists(token_in_address, token_out_address, False):
+                            valid_dexes.append(dex_name)
+                    except Exception as e:
+                        logger.warning(f"Failed to check pool on {dex_name}: {str(e)}")
+                        continue
+                else:
+                    # For DEXes that don't support pool checking, try getting a quote
+                    try:
+                        quote = dex.get_quote(token_in_address, token_out_address, amount_in_wei)
+                        if quote > 0:
+                            valid_dexes.append(dex_name)
+                    except Exception as e:
+                        logger.warning(f"Failed to get quote from {dex_name}: {str(e)}")
+                        continue
+
+            # Then get quotes only from valid DEXes
+            for dex_name in valid_dexes:
                 dex = self.dexes[dex_name]
                 try:
                     quote = dex.get_quote(token_in_address, token_out_address, amount_in_wei)
