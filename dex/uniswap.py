@@ -154,9 +154,10 @@ class UniswapV3DEX(BaseDEX):
                     'blockNumber': receipt['blockNumber']
                 }
             else:
+                revert_reason = self._get_revert_reason(receipt)
                 return {
                     'success': False,
-                    'error': 'Transaction failed',
+                    'error': f'Transaction failed: {revert_reason}',
                     'receipt': receipt
                 }
 

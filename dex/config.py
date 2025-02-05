@@ -10,7 +10,7 @@ from web3 import Web3
 load_dotenv()
 
 # Base Network Configuration
-RPC_URL = "https://mainnet.base.org"
+RPC_URL = os.getenv('RPC_URL', "https://mainnet.base.org")  # Fallback to public RPC if env not set
 
 # Contract addresses
 WETH_ADDRESS = Web3.to_checksum_address("0x4200000000000000000000000000000000000006")

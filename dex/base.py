@@ -38,15 +38,32 @@ class BaseDEX:
             'error': readable_error
         }
         
+    def _get_revert_reason(self, receipt: Dict[str, Any]) -> str:
+        """Get revert reason from a failed transaction"""
+        try:
+            # Replay the failed transaction to get the revert reason
+            self.w3.eth.call({
+                'to': receipt['to'],
+                'from': receipt['from'],
+                'data': self.w3.eth.get_transaction(receipt['transactionHash'])['input'],
+                'gas': receipt['gasUsed'],
+                'value': 0,
+                'maxFeePerGas': self.w3.eth.get_transaction(receipt['transactionHash'])['maxFeePerGas'],
+                'maxPriorityFeePerGas': self.w3.eth.get_transaction(receipt['transactionHash'])['maxPriorityFeePerGas'],
+            }, receipt['blockNumber'] - 1)
+            return 'Unknown failure'
+        except Exception as e:
+            return str(e)
+        
     def _build_tx(self, function) -> Dict:
         """Build a transaction with standard gas settings"""
         # Get the latest block to estimate gas prices
         block = self.w3.eth.get_block('latest')
         base_fee = block['baseFeePerGas']
         
-        # Set gas prices - use 2x base fee for maxFeePerGas and 10% of base fee for maxPriorityFeePerGas
-        max_fee = base_fee * 2
-        priority_fee = base_fee // 10
+        # Set gas prices - use 10x base fee for maxFeePerGas and 50% of base fee for maxPriorityFeePerGas
+        max_fee = base_fee * 10
+        priority_fee = base_fee // 2
         
         return function.build_transaction({
             'from': self.address,
@@ -58,11 +75,8 @@ class BaseDEX:
 
     def _wait_for_pending_txs(self, token_in: str, token_out: str):
         """Wait for any pending transactions involving these tokens"""
-        # Get current nonce
-        current_pending = self._pending_txs
-        latest_nonce = self.w3.eth.get_transaction_count(self.address, 'latest')
-        logger.info(f"[_wait_for_pending_txs] Current pending transactions: {current_pending}")
-        logger.info(f"[_wait_for_pending_txs] Latest nonce: {latest_nonce}")
+        # Check if we have any pending transactions for this token pair
+        logger.info(f"[_wait_for_pending_txs] Current pending transactions: {self._pending_txs}")
 
         token_pair = tuple(sorted([token_in.lower(), token_out.lower()]))
         if token_pair in self._pending_txs:
@@ -81,13 +95,9 @@ class BaseDEX:
         
         This method manages nonce tracking to ensure sequential operations.
         """
-        # Always get a fresh nonce from pending state
-        pending_nonce = self.w3.eth.get_transaction_count(self.address, 'pending')
-        latest_nonce = self.w3.eth.get_transaction_count(self.address, 'latest')
-        
-        # Use the highest nonce we can find
-        next_nonce = max(pending_nonce, latest_nonce)
-        logger.info(f"Got nonces - pending: {pending_nonce}, latest: {latest_nonce}, using: {next_nonce}")
+        # Get nonce from pending state to account for all transactions (ours and others)
+        next_nonce = self.w3.eth.get_transaction_count(self.address, 'pending')
+        logger.info(f"Got nonce from pending state: {next_nonce}")
         
         return next_nonce
 
@@ -122,7 +132,7 @@ class BaseDEX:
             logger.info(f"Transaction sent: {tx_hash.hex()}")
 
             # Wait for transaction receipt
-            receipt = self.w3.eth.wait_for_transaction_receipt(tx_hash, timeout=30)
+            receipt = self.w3.eth.wait_for_transaction_receipt(tx_hash, timeout=300)  # Wait up to 5 minutes
             logger.info(f"Transaction receipt: {receipt}")
 
             if receipt['status'] == 1:
@@ -133,9 +143,10 @@ class BaseDEX:
                     'blockNumber': receipt['blockNumber']
                 }
             else:
+                revert_reason = self._get_revert_reason(receipt)
                 return {
                     'success': False,
-                    'error': 'Transaction failed',
+                    'error': f'Transaction failed: {revert_reason}',
                     'receipt': receipt
                 }
 

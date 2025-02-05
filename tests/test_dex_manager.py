@@ -62,8 +62,8 @@ def test_aerodrome_swaps(dex_manager):
     btc_gained = (new_btc - initial_btc) / Decimal('1e8')
     logger.info(f"Gained {btc_gained:.8f} cbBTC")
 
-    # Test cbBTC -> USDC swap (convert all BTC back)
-    btc_to_swap = new_btc  # Use all available BTC
+    # Test cbBTC -> USDC swap (leave some for gas)
+    btc_to_swap = int(new_btc * 0.99)  # Leave 1% for gas fees
     result = dex_manager.swap_tokens(
         'cbBTC',
         'USDC',
@@ -103,8 +103,8 @@ def test_uniswap_swaps(dex_manager):
     btc_gained = (new_btc - initial_btc) / Decimal('1e8')
     logger.info(f"Gained {btc_gained:.8f} cbBTC")
 
-    # Test cbBTC -> USDC swap (convert all BTC back)
-    btc_to_swap = new_btc  # Use all available BTC
+    # Test cbBTC -> USDC swap (leave some for gas)
+    btc_to_swap = int(new_btc * 0.99)  # Leave 1% for gas fees
     result = dex_manager.swap_tokens(
         'cbBTC',
         'USDC',
@@ -170,8 +170,8 @@ def test_swap_tokens(dex_manager):
     btc_gained = (mid_btc - initial_btc) / Decimal('1e8')
     logger.info(f"Gained {btc_gained:.8f} cbBTC")
 
-    # Test cbBTC -> USDC swap (convert all BTC back)
-    btc_amount = mid_btc  # Use all available BTC
+    # Test cbBTC -> USDC swap (leave some for gas)
+    btc_amount = int(mid_btc * 0.99)  # Leave 1% for gas fees
     result = dex_manager.swap_tokens(
         'cbBTC',
         'USDC',

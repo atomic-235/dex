@@ -158,7 +158,7 @@ class AerodromeDEX(BaseDEX):
             # Try direct path first
             direct_path = [token_in, token_out]
             logger.info(f"Trying direct path: {direct_path}")
-            direct_route = self._get_route(direct_path)
+            direct_route = self._get_route(direct_path, amount_in)
             if direct_route:
                 routes = direct_route
                 logger.info("Using direct route")
@@ -172,6 +172,7 @@ class AerodromeDEX(BaseDEX):
             logger.info(f"Transaction deadline: {deadline}")
             
             # Encode the swap function call using functions
+            logger.info(f"Swapping with params: amount_in={amount_in}, min_amount_out={min_amount_out}, routes={routes}, address={self.address}, deadline={deadline}")
             swap_function = self.router.functions.swapExactTokensForTokens(
                 amount_in,
                 min_amount_out,
@@ -186,7 +187,7 @@ class AerodromeDEX(BaseDEX):
             
             # Get latest nonce right before signing
             tx['nonce'] = self.get_nonce()
-            logger.info("Built transaction parameters")
+            logger.info(f"Built transaction parameters: {tx}")
 
             # Sign transaction
             signed_tx = self.w3.eth.account.sign_transaction(tx, private_key=self.account.key)
@@ -197,7 +198,7 @@ class AerodromeDEX(BaseDEX):
             logger.info(f"Transaction sent: {tx_hash.hex()}")
             
             # Wait for transaction receipt
-            receipt = self.w3.eth.wait_for_transaction_receipt(tx_hash, timeout=120)
+            receipt = self.w3.eth.wait_for_transaction_receipt(tx_hash, timeout=120)  # Wait up to 5 minutes
             logger.info(f"Transaction receipt: {receipt}")
 
             if receipt['status'] == 1:
@@ -212,16 +213,17 @@ class AerodromeDEX(BaseDEX):
                     'blockNumber': receipt['blockNumber']
                 }
             else:
+                revert_reason = self._get_revert_reason(receipt)
                 return {
                     'success': False,
-                    'error': 'Transaction failed',
+                    'error': f'Transaction failed: {revert_reason}',
                     'receipt': receipt
                 }
 
         except Exception as e:
             return self._handle_error(e, "executing swap")
 
-    def _get_route(self, path: List[str]) -> List[Tuple[ChecksumAddress, ChecksumAddress, bool, ChecksumAddress]]:
+    def _get_route(self, path: List[str], amount_in: int) -> List[Tuple[ChecksumAddress, ChecksumAddress, bool, ChecksumAddress]]:
         """Get the best route for a path"""
         try:
             routes = []
@@ -233,10 +235,32 @@ class AerodromeDEX(BaseDEX):
                 stable_pool_exists = self.get_pool_exists(token_in, token_out, True)
                 volatile_pool_exists = self.get_pool_exists(token_in, token_out, False)
 
+                # Get quotes from both pool types
+                stable_quote = 0
+                volatile_quote = 0
+
                 if stable_pool_exists:
+                    try:
+                        stable_route = [Route(token_in, token_out, True, self.factory_address).to_tuple()]
+                        stable_quote = self.router.functions.getAmountsOut(amount_in, stable_route).call()[-1]
+                        logger.info(f"Stable pool quote: {stable_quote}")
+                    except Exception as e:
+                        logger.warning(f"Failed to get stable pool quote: {e}")
+
+                if volatile_pool_exists:
+                    try:
+                        volatile_route = [Route(token_in, token_out, False, self.factory_address).to_tuple()]
+                        volatile_quote = self.router.functions.getAmountsOut(amount_in, volatile_route).call()[-1]
+                        logger.info(f"Volatile pool quote: {volatile_quote}")
+                    except Exception as e:
+                        logger.warning(f"Failed to get volatile pool quote: {e}")
+
+                if stable_quote > volatile_quote:
                     routes.append(Route(token_in, token_out, True, self.factory_address))
-                elif volatile_pool_exists:
+                    logger.info("Using stable pool - better rate")
+                elif volatile_quote > 0:
                     routes.append(Route(token_in, token_out, False, self.factory_address))
+                    logger.info("Using volatile pool - better rate")
                 else:
                     return []
 
