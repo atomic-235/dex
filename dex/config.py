@@ -32,6 +32,7 @@ AERODROME_FACTORY_ADDRESS = Web3.to_checksum_address("0x420DD381b31aEf6683db6B90
 AERODROME_ROUTER_ADDRESS = Web3.to_checksum_address("0xcF77a3Ba9A5CA399B7c97c74d54e5b1Beb874E43")
 
 # Common tokens on Base
+ETH_ADDRESS = Web3.to_checksum_address("0x0000000000000000000000000000000000000000")  # Native ETH
 USDbC_ADDRESS = Web3.to_checksum_address("0xd9aAEc86B65D86f6A7B5B1b0c42FFA531710b6CA")  # Base USD
 AERO_ADDRESS = Web3.to_checksum_address("0x940181a94A35A4569E4529A3CDfB74e38FD98631")  # Aerodrome token
 cbBTC_ADDRESS = Web3.to_checksum_address("0xcbB7C0000aB88B473b1f5aFd9ef808440eed33Bf")  # cbBTC

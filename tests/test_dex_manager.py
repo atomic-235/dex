@@ -141,6 +141,55 @@ def test_best_rate_swaps(dex_manager):
     logger.info(f"Best rate from {result['dex']}: 1 BTC = ${float(result['rate']):,.2f}")
 
 
+def test_eth_balance(dex_manager):
+    """Test ETH balance retrieval functionality"""
+    # Get ETH balance using Token enum
+    eth_balance = dex_manager.get_token_balance('ETH')
+    logger.info(f"ETH balance: {eth_balance/1e18:.6f} ETH")
+
+    # Verify the balance is a non-negative number
+    assert eth_balance >= 0, "ETH balance should be non-negative"
+
+    # Get ETH balance directly from web3 for comparison
+    account = dex_manager.w3.eth.account.from_key(dex_manager.private_key)
+    web3_eth_balance = dex_manager.w3.eth.get_balance(account.address)
+
+    # Verify both methods return the same balance
+    assert eth_balance == web3_eth_balance, "ETH balance from DEX manager should match web3 balance"
+
+
+def test_token_balances(dex_manager):
+    """Test ERC20 token balance retrieval functionality"""
+    # Test USDC balance
+    usdc_balance = dex_manager.get_token_balance('USDC')
+    logger.info(f"USDC balance: ${usdc_balance/1e6:.2f}")
+    assert usdc_balance >= 0, "USDC balance should be non-negative"
+
+    # Test cbBTC balance
+    cbbtc_balance = dex_manager.get_token_balance('cbBTC')
+    logger.info(f"cbBTC balance: {cbbtc_balance/1e8:.8f} BTC")
+    assert cbbtc_balance >= 0, "cbBTC balance should be non-negative"
+
+    # Verify balances using direct contract calls
+    account = dex_manager.w3.eth.account.from_key(dex_manager.private_key)
+    
+    # Get USDC balance via contract
+    usdc_contract = dex_manager.w3.eth.contract(
+        address=dex_manager._get_token_address('USDC'),
+        abi=next(iter(dex_manager.dexes.values())).token_abi
+    )
+    contract_usdc_balance = usdc_contract.functions.balanceOf(account.address).call()
+    assert usdc_balance == contract_usdc_balance, "USDC balance from DEX manager should match contract balance"
+
+    # Get cbBTC balance via contract
+    cbbtc_contract = dex_manager.w3.eth.contract(
+        address=dex_manager._get_token_address('cbBTC'),
+        abi=next(iter(dex_manager.dexes.values())).token_abi
+    )
+    contract_cbbtc_balance = cbbtc_contract.functions.balanceOf(account.address).call()
+    assert cbbtc_balance == contract_cbbtc_balance, "cbBTC balance from DEX manager should match contract balance"
+
+
 def test_swap_tokens(dex_manager):
 
     """Test actual token swaps using DEX manager"""

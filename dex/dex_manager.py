@@ -14,7 +14,7 @@ from .aerodrome import AerodromeDEX
 from .base import BaseDEX
 from .config import (
     USDC_ADDRESS, USDbC_ADDRESS, WETH_ADDRESS, AERO_ADDRESS,
-    cbBTC_ADDRESS, WBTC_ADDRESS
+    cbBTC_ADDRESS, WBTC_ADDRESS, ETH_ADDRESS
 )
 
 logger = logging.getLogger(__name__)
@@ -28,6 +28,7 @@ class Token(Enum):
     AERO = auto()
     cbBTC = auto()
     WBTC = auto()
+    ETH = auto()
 
 
 # Mapping of token symbols to addresses
@@ -38,6 +39,7 @@ TOKEN_ADDRESSES = {
     Token.AERO: AERO_ADDRESS,
     Token.cbBTC: cbBTC_ADDRESS,
     Token.WBTC: WBTC_ADDRESS,
+    Token.ETH: ETH_ADDRESS  # Zero address represents native ETH
 }
 
 
@@ -90,7 +92,12 @@ class DEXManager:
         """
         token_address = self._get_token_address(token)
         
-        # Use any DEX instance to get the balance since they all use the same account
+        # Handle ETH balance specially since it's not an ERC20 token
+        if token_address == ETH_ADDRESS:
+            account = self.w3.eth.account.from_key(self.private_key)
+            return self.w3.eth.get_balance(account.address)
+        
+        # For ERC20 tokens, use DEX instance to get the balance
         dex = next(iter(self.dexes.values()))
         logger.info(f"Using DEX with address: {dex.address}")
         raw_balance = dex.get_token_balance(token_address)
