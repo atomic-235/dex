@@ -185,7 +185,8 @@ class DEXManager:
                 dex = self.dexes[dex_name]
                 try:
                     quote = dex.get_quote(token_in_address, token_out_address, amount_in_wei)
-                    if quote > best_amount:
+                    # Always prefer a non-zero quote over zero quote
+                    if (quote > 0 and best_amount == 0) or (quote > best_amount):
                         best_amount = quote
                         best_dex = dex_name
                         
@@ -208,10 +209,10 @@ class DEXManager:
                     logger.warning(f"Failed to get quote from {dex_name}: {str(e)}")
                     continue
 
-            if best_rate is None:
+            if best_rate is None or best_amount == 0:
                 return {
                     'success': False,
-                    'error': 'No valid quotes found from any DEX'
+                    'error': 'No valid quotes found from any DEX or all quotes were zero'
                 }
 
             return {
